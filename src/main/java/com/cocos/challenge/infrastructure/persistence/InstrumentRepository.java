@@ -11,10 +11,10 @@ public interface InstrumentRepository extends JpaRepository<InstrumentEntity, In
 	@Query(value = """
 			select *
 			from instruments
-			where type = 'ACCIONES'
+			where "type" = 'ACCIONES'
 			  and (
-			    ticker ilike :pattern escape '\\'
-			    or name ilike :pattern escape '\\'
+			    ticker ilike :pattern escape E'\\\\'
+			    or "name" ilike :pattern escape E'\\\\'
 			  )
 			order by ticker
 			limit :limit
