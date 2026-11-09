@@ -1,0 +1,554 @@
+{
+  "info": {
+    "name": "Cocos Challenge Backend",
+    "description": "Colección de la API de brokerage.\n\nNo hay autenticación: el usuario va en el path. El usuario de ejemplo es el `1` (emiliano@test.com). Antes de crear órdenes, su portfolio es 627500 de pesos disponibles y 904784 de valor total, con METR (500) y PAMP (40).\n\nLas órdenes que se rechazan igual responden **201** y quedan guardadas con `status: REJECTED`. Un 400 es un pedido mal formado y no se guarda.\n\n`baseUrl` apunta a `http://localhost:8080`. Las peticiones que escriben modifican la base. Cancelar la orden `5` del seed solo funciona una vez, mientras siga en `NEW`.",
+    "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
+  },
+  "variable": [
+    {
+      "key": "baseUrl",
+      "value": "http://localhost:8080"
+    }
+  ],
+  "item": [
+    {
+      "name": "Portfolio",
+      "item": [
+        {
+          "name": "Portfolio del usuario 1",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": "{{baseUrl}}/api/v1/users/1/portfolio",
+            "description": "Sobre el seed intacto: `availableCash` 627500.00, `totalAccountValue` 904784.00, posiciones METR (500) y PAMP (40). BMA no aparece: el seed lo deja en -10."
+          }
+        },
+        {
+          "name": "Portfolio de un usuario sin órdenes",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": "{{baseUrl}}/api/v1/users/2/portfolio",
+            "description": "El usuario 2 existe y no tiene órdenes. Responde 200 con cash 0, total 0 y `positions` vacío."
+          }
+        },
+        {
+          "name": "Portfolio de un usuario inexistente",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": "{{baseUrl}}/api/v1/users/99/portfolio",
+            "description": "Responde 404."
+          }
+        }
+      ]
+    },
+    {
+      "name": "Búsqueda",
+      "item": [
+        {
+          "name": "Buscar por ticker",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": "{{baseUrl}}/api/v1/instruments/search?q=PAMP",
+            "description": "No distingue mayúsculas. PAMP trae `lastPrice` 925.85 y el retorno diario contra `previousClose`."
+          }
+        },
+        {
+          "name": "Buscar por nombre",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": "{{baseUrl}}/api/v1/instruments/search?q=banco",
+            "description": "Coincide por nombre. Devuelve como máximo 20 acciones."
+          }
+        },
+        {
+          "name": "Buscar la moneda ARS",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": "{{baseUrl}}/api/v1/instruments/search?q=PESOS",
+            "description": "ARS es `MONEDA` y no entra en la búsqueda. La respuesta es una lista vacía."
+          }
+        },
+        {
+          "name": "Buscar un comodín",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/api/v1/instruments/search?q=%",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "v1", "instruments", "search"],
+              "query": [
+                {
+                  "key": "q",
+                  "value": "%"
+                }
+              ]
+            },
+            "description": "`%` se trata como texto, no como comodín. Ningún ticker ni nombre lo contiene, así que la lista vuelve vacía."
+          }
+        },
+        {
+          "name": "Búsqueda vacía",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/api/v1/instruments/search?q= ",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "v1", "instruments", "search"],
+              "query": [
+                {
+                  "key": "q",
+                  "value": " "
+                }
+              ]
+            },
+            "description": "El término es obligatorio. Responde 400."
+          }
+        }
+      ]
+    },
+    {
+      "name": "Órdenes",
+      "item": [
+        {
+          "name": "Compra MARKET por cantidad",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"instrumentId\": 47,\n  \"side\": \"BUY\",\n  \"type\": \"MARKET\",\n  \"size\": 1\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            },
+            "url": "{{baseUrl}}/api/v1/users/1/orders",
+            "description": "Compra 1 PAMP al último `close` (925.85). Responde 201 con `status: FILLED`. El precio del body se ignora en una orden MARKET."
+          }
+        },
+        {
+          "name": "Compra MARKET por monto",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"instrumentId\": 47,\n  \"side\": \"BUY\",\n  \"type\": \"MARKET\",\n  \"amount\": 2000\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            },
+            "url": "{{baseUrl}}/api/v1/users/1/orders",
+            "description": "2000 pesos alcanzan para 2 acciones de PAMP (`floor(2000 / 925.85)`). Responde 201 con `status: FILLED` y `size: 2`."
+          }
+        },
+        {
+          "name": "Compra LIMIT",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"instrumentId\": 1,\n  \"side\": \"BUY\",\n  \"type\": \"LIMIT\",\n  \"size\": 1,\n  \"price\": 100\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            },
+            "url": "{{baseUrl}}/api/v1/users/1/orders",
+            "description": "Queda en `NEW` y reserva 100 pesos. El valor total de la cuenta no cambia. No hay matching: el challenge pide no simular el mercado."
+          }
+        },
+        {
+          "name": "Venta LIMIT",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"instrumentId\": 47,\n  \"side\": \"SELL\",\n  \"type\": \"LIMIT\",\n  \"size\": 1,\n  \"price\": 1000\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            },
+            "url": "{{baseUrl}}/api/v1/users/1/orders",
+            "description": "Queda en `NEW` y reserva 1 acción de PAMP. Una venta posterior de las 40 disponibles se rechaza porque ya hay una reservada."
+          }
+        },
+        {
+          "name": "Venta MARKET",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"instrumentId\": 47,\n  \"side\": \"SELL\",\n  \"type\": \"MARKET\",\n  \"size\": 1\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            },
+            "url": "{{baseUrl}}/api/v1/users/1/orders",
+            "description": "Vende 1 PAMP al último `close` si quedan acciones libres. Responde 201 con `status: FILLED`."
+          }
+        },
+        {
+          "name": "Monto que no alcanza para una acción",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"instrumentId\": 47,\n  \"side\": \"BUY\",\n  \"type\": \"MARKET\",\n  \"amount\": 100\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            },
+            "url": "{{baseUrl}}/api/v1/users/1/orders",
+            "description": "100 pesos no compran una acción de PAMP. Se guarda con `size: 0` y `status: REJECTED`. Igual responde 201."
+          }
+        },
+        {
+          "name": "Compra sin fondos",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"instrumentId\": 47,\n  \"side\": \"BUY\",\n  \"type\": \"MARKET\",\n  \"size\": 100000\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            },
+            "url": "{{baseUrl}}/api/v1/users/1/orders",
+            "description": "El importe supera el cash disponible, incluidas las reservas de las LIMIT en `NEW`. Se guarda `REJECTED` y responde 201. El portfolio no cambia."
+          }
+        },
+        {
+          "name": "Venta sin acciones suficientes",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"instrumentId\": 47,\n  \"side\": \"SELL\",\n  \"type\": \"MARKET\",\n  \"size\": 100000\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            },
+            "url": "{{baseUrl}}/api/v1/users/1/orders",
+            "description": "PAMP no tiene tantas acciones libres. Se guarda `REJECTED` y responde 201."
+          }
+        },
+        {
+          "name": "Venta de BMA, posición negativa del seed",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"instrumentId\": 31,\n  \"side\": \"SELL\",\n  \"type\": \"MARKET\",\n  \"size\": 1\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            },
+            "url": "{{baseUrl}}/api/v1/users/1/orders",
+            "description": "El seed deja BMA (id 31) en -10. La venta se guarda `REJECTED`."
+          }
+        },
+        {
+          "name": "MARKET sin precio de mercado",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"instrumentId\": 3,\n  \"side\": \"BUY\",\n  \"type\": \"MARKET\",\n  \"size\": 1\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            },
+            "url": "{{baseUrl}}/api/v1/users/1/orders",
+            "description": "PGR (id 3) no tiene filas en `marketdata`. Se guarda `REJECTED` con `price` nulo. IRCP (id 10) se comporta igual."
+          }
+        },
+        {
+          "name": "Orden sobre ARS",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"instrumentId\": 66,\n  \"side\": \"BUY\",\n  \"type\": \"MARKET\",\n  \"size\": 1\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            },
+            "url": "{{baseUrl}}/api/v1/users/1/orders",
+            "description": "ARS es `MONEDA`. Responde 400 y no se guarda la orden. El cash entra por `CASH_IN` y `CASH_OUT`, que este endpoint no crea."
+          }
+        },
+        {
+          "name": "CASH_IN no se acepta",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"instrumentId\": 47,\n  \"side\": \"CASH_IN\",\n  \"type\": \"MARKET\",\n  \"size\": 1\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            },
+            "url": "{{baseUrl}}/api/v1/users/1/orders",
+            "description": "El alta solo acepta `BUY` y `SELL`. Responde 400 y no se guarda."
+          }
+        },
+        {
+          "name": "Cantidad y monto juntos",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"instrumentId\": 47,\n  \"side\": \"BUY\",\n  \"type\": \"MARKET\",\n  \"size\": 1,\n  \"amount\": 10\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            },
+            "url": "{{baseUrl}}/api/v1/users/1/orders",
+            "description": "Hay que mandar `size` o `amount`, no los dos. Responde 400."
+          }
+        },
+        {
+          "name": "LIMIT sin precio",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"instrumentId\": 47,\n  \"side\": \"BUY\",\n  \"type\": \"LIMIT\",\n  \"size\": 1\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            },
+            "url": "{{baseUrl}}/api/v1/users/1/orders",
+            "description": "Una LIMIT exige `price` mayor a cero. Responde 400."
+          }
+        },
+        {
+          "name": "Cantidad en cero",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"instrumentId\": 47,\n  \"side\": \"BUY\",\n  \"type\": \"MARKET\",\n  \"size\": 0\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            },
+            "url": "{{baseUrl}}/api/v1/users/1/orders",
+            "description": "`size` tiene que ser mayor a cero. Responde 400 y no se guarda. El `size: 0` guardado solo aparece cuando un monto no alcanza para una acción."
+          }
+        },
+        {
+          "name": "Instrumento inexistente",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"instrumentId\": 999,\n  \"side\": \"BUY\",\n  \"type\": \"MARKET\",\n  \"size\": 1\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            },
+            "url": "{{baseUrl}}/api/v1/users/1/orders",
+            "description": "Responde 404 y no se guarda."
+          }
+        },
+        {
+          "name": "Usuario inexistente",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"instrumentId\": 47,\n  \"side\": \"BUY\",\n  \"type\": \"MARKET\",\n  \"size\": 1\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            },
+            "url": "{{baseUrl}}/api/v1/users/99/orders",
+            "description": "Responde 404 y no se guarda."
+          }
+        }
+      ]
+    },
+    {
+      "name": "Cancelar",
+      "item": [
+        {
+          "name": "Cancelar una orden NEW del seed",
+          "request": {
+            "method": "POST",
+            "header": [],
+            "url": "{{baseUrl}}/api/v1/users/1/orders/5/cancel",
+            "description": "La orden 5 es una LIMIT BUY de 50 acciones a 710, en `NEW`. Pasa a `CANCELLED` y libera 35500 pesos de reserva. Solo se puede cancelar una vez. Para repetirla hay que recrear la base."
+          }
+        },
+        {
+          "name": "Cancelar una orden FILLED",
+          "request": {
+            "method": "POST",
+            "header": [],
+            "url": "{{baseUrl}}/api/v1/users/1/orders/2/cancel",
+            "description": "La orden 2 ya está `FILLED`. Responde 409 y la fila no cambia. Solo se cancelan órdenes `NEW`."
+          }
+        },
+        {
+          "name": "Cancelar la orden de otro usuario",
+          "request": {
+            "method": "POST",
+            "header": [],
+            "url": "{{baseUrl}}/api/v1/users/2/orders/5/cancel",
+            "description": "La orden 5 es del usuario 1. Responde 404 y sigue en `NEW`."
+          }
+        },
+        {
+          "name": "Cancelar una orden inexistente",
+          "request": {
+            "method": "POST",
+            "header": [],
+            "url": "{{baseUrl}}/api/v1/users/1/orders/999/cancel",
+            "description": "Responde 404."
+          }
+        }
+      ]
+    }
+  ]
+}

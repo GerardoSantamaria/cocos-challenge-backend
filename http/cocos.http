@@ -1,0 +1,47 @@
+@host = http://localhost:8080
+
+### Portfolio del usuario de ejemplo
+GET {{host}}/api/v1/users/1/portfolio
+
+### Buscar por ticker
+GET {{host}}/api/v1/instruments/search?q=PAMP
+
+### Buscar por nombre
+GET {{host}}/api/v1/instruments/search?q=banco
+
+### Compra a mercado por cantidad
+POST {{host}}/api/v1/users/1/orders
+Content-Type: application/json
+
+{
+  "instrumentId": 47,
+  "side": "BUY",
+  "type": "MARKET",
+  "size": 1
+}
+
+### Compra a mercado por monto
+POST {{host}}/api/v1/users/1/orders
+Content-Type: application/json
+
+{
+  "instrumentId": 47,
+  "side": "BUY",
+  "type": "MARKET",
+  "amount": 2000
+}
+
+### Compra limite
+POST {{host}}/api/v1/users/1/orders
+Content-Type: application/json
+
+{
+  "instrumentId": 1,
+  "side": "BUY",
+  "type": "LIMIT",
+  "size": 1,
+  "price": 100
+}
+
+### Cancelar una orden NEW (id 5 en el seed)
+POST {{host}}/api/v1/users/1/orders/5/cancel
