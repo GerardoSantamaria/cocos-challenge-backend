@@ -268,7 +268,7 @@ Sobre órdenes del usuario:
 | **availableCash** (para operar) | cashBalance − reservedCash |
 | **quantity** de un activo | Σ size `BUY` FILLED − Σ size `SELL` FILLED (solo `ACCIONES`) |
 | **availableShares** (para vender) | quantity − Σ size `SELL` `LIMIT` en `NEW` |
-| **avgCostPrice** | Promedio ponderado de compras FILLED: Σ (size×price) BUY / Σ size BUY. Las ventas no lo modifican (método de costo promedio). |
+| **avgCostPrice** | Método de costo promedio, con las órdenes FILLED en orden cronológico (`datetime`, después `id`). Por instrumento se lleva `quantity` y `costBasis`. BUY con quantity ≥ 0: `costBasis += size×price`. BUY con quantity < 0: si la cantidad queda positiva, `costBasis = quantity×price`; si no, 0. SELL con quantity > 0: `costBasis × (quantity − size) / quantity`, o 0 si la posición llega a cero o menos. avgCostPrice = costBasis / quantity si quantity > 0; si no, nulo. Las ventas no cambian el promedio; llegar a cero lo reinicia. |
 | **marketValue** | quantity × último `close` |
 | **totalReturnPct** | (último `close` − avgCostPrice) / avgCostPrice × 100 |
 | **dailyReturnPct** | (`close` − `previousClose`) / `previousClose` × 100, del último día |

@@ -6,8 +6,14 @@ import static org.assertj.core.api.Assertions.within;
 import java.io.IOException;
 import java.math.BigDecimal;
 import java.nio.charset.StandardCharsets;
+import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
+import java.util.concurrent.CountDownLatch;
+import java.util.concurrent.ExecutorService;
+import java.util.concurrent.Executors;
+import java.util.concurrent.Future;
+import java.util.concurrent.TimeUnit;
 
 import javax.sql.DataSource;
 
@@ -171,6 +177,40 @@ class ChallengeEndToEndTest {
 				""").status().value()).isEqualTo(400);
 		assertThat(post("/api/v1/users/99/orders", marketBuy(47, 1)).status().value()).isEqualTo(404);
 		assertThat(orderCount()).isEqualTo(11);
+	}
+
+	@Test
+	void concurrentBuysCannotSpendTheSameCash() throws Exception {
+		int buyers = 10;
+		CountDownLatch start = new CountDownLatch(1);
+		List<Future<HttpResult>> responses = new ArrayList<>();
+		try (ExecutorService executor = Executors.newVirtualThreadPerTaskExecutor()) {
+			for (int i = 0; i < buyers; i++) {
+				responses.add(executor.submit(() -> {
+					start.await();
+					return post("/api/v1/users/1/orders", marketBuy(47, 400));
+				}));
+			}
+			start.countDown();
+			List<String> statuses = new ArrayList<>();
+			for (Future<HttpResult> response : responses) {
+				HttpResult result = response.get(30, TimeUnit.SECONDS);
+				assertThat(result.status().value()).isEqualTo(201);
+				statuses.add(text(result, "$.status"));
+			}
+			assertThat(statuses).filteredOn("FILLED"::equals).hasSize(1);
+			assertThat(statuses).filteredOn("REJECTED"::equals).hasSize(buyers - 1);
+		}
+
+		assertThat(jdbc.queryForObject("select count(*) from orders where userid = 1 and instrumentid = 47"
+				+ " and size = 400 and status = 'FILLED'", Long.class))
+			.isEqualTo(1);
+		assertThat(orderCount()).isEqualTo(21);
+
+		HttpResult portfolio = get("/api/v1/users/1/portfolio");
+		assertThat(number(portfolio, "$.availableCash")).isCloseTo(257160.00, within(MONEY));
+		assertThat(number(portfolio, "$.totalAccountValue")).isCloseTo(904784.00, within(MONEY));
+		assertThat(pamp(portfolio, "quantity")).isEqualTo(440.0);
 	}
 
 	private HttpResult get(String path) {

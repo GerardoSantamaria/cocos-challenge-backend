@@ -88,19 +88,21 @@ Calculado solo con órdenes `FILLED` (y reservas de las `LIMIT` en `NEW`):
 | PAMP (id 47) | 40 acciones, costo promedio 930, último precio 925,85 |
 | METR (id 54) | 500 acciones, costo promedio 250, último precio 229,50 |
 
-El valor total usa el cash contable más el valor de mercado de las posiciones. Los pesos disponibles restan el cash reservado por compras límite abiertas. El rendimiento total se compara contra el costo promedio ponderado de las compras. El rendimiento diario compara `close` con `previousClose`.
+El valor total usa el cash contable más el valor de mercado de las posiciones. Los pesos disponibles restan el cash reservado por compras límite abiertas. El rendimiento total se compara contra el costo promedio de las acciones en cartera: las compras lo recalculan, las ventas no lo cambian y, si la posición llega a cero, se reinicia. El rendimiento diario compara `close` con `previousClose`.
 
 ## Decisiones
 
 - **Posición negativa de BMA.** El seed vende 30 acciones de BMA (id 31) y solo compra 20. No se tocan los datos. El portfolio muestra solo cantidades mayores a cero, así que BMA no aparece. El cash sí cuenta esa venta. Una venta nueva de BMA queda `REJECTED`.
 - **METR, no TXAR.** La orden de 500 acciones es el instrumento 54, MetroGAS (`METR`). TXAR es el id 49.
+- **Costo promedio.** Se calcula con el método de costo promedio, procesando las órdenes `FILLED` en orden cronológico. Una compra suma su costo al de las acciones en cartera. Una venta saca acciones al costo promedio, así que no lo cambia. Si la posición llega a cero o queda negativa, el costo vuelve a cero y la próxima compra fija el promedio nuevo.
+- **Último precio.** Es el `close` de la fila más reciente por `date` con `close` no nulo y mayor a cero; ante empate de fecha, gana el mayor `id`. Lo usan igual el portfolio, la búsqueda y las órdenes `MARKET`.
 - **Órdenes `MARKET`** se ejecutan al último `close` y quedan `FILLED`. Si no hay precio (PGR, IRCP), quedan `REJECTED`.
 - **Órdenes `LIMIT`** quedan `NEW`. No hay matching: el challenge pide no simular el mercado.
 - **Cantidad por monto:** `floor(monto / precio)`. Si da cero acciones, la orden se guarda `REJECTED`.
 - **Reservas.** Una `LIMIT` `BUY` en `NEW` reserva cash. Una `LIMIT` `SELL` en `NEW` reserva acciones. Cancelarla libera la reserva.
 - **`POST /orders` solo acepta `BUY` y `SELL`.** `CASH_IN` y `CASH_OUT` existen en el modelo y entran en el cálculo del cash, pero este endpoint no las crea. Tampoco se opera el instrumento `ARS`.
 - **`size` y `price` tienen que ser mayores a cero** y entrar en las columnas (`INT` y `NUMERIC(10,2)`).
-- **Concurrencia.** Al crear o cancelar una orden se bloquea la fila del usuario (`SELECT … FOR UPDATE`).
+- **Concurrencia.** Al crear o cancelar una orden se bloquea la fila del usuario (`SELECT … FOR UPDATE`). `ChallengeEndToEndTest` lo prueba con diez compras simultáneas que no alcanzan para todas: se ejecuta una sola.
 - **Esquema.** No se modifica. `ddl-auto=validate` solo comprueba el mapeo. Los nombres físicos son los de Postgres, en minúsculas (`accountnumber`, `instrumentid`, `previousclose`, `date`). Índices sugeridos, sin aplicar, en `docs/optional-indexes.sql`.
 - **Columnas que el enunciado nombra distinto.** `marketdata` tiene `date`, no `datetime`.
 

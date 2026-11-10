@@ -16,6 +16,7 @@ import com.cocos.challenge.domain.support.MoneyMath;
 
 public final class BalanceCalculator {
 
+	/** Expects {@code orders} in chronological order: the average cost depends on it. */
 	public AccountSnapshot calculate(List<OrderView> orders) {
 		BigDecimal cash = BigDecimal.ZERO;
 		BigDecimal reservedCash = BigDecimal.ZERO;
@@ -93,24 +94,36 @@ public final class BalanceCalculator {
 
 	private static final class Accumulator {
 
-		private long buyQuantity;
-
-		private long sellQuantity;
+		private long quantity;
 
 		private long reservedSell;
 
-		private BigDecimal buyNotional = BigDecimal.ZERO;
+		private BigDecimal costBasis = BigDecimal.ZERO;
 
 		private void addBuy(int size, BigDecimal price) {
 			if (price == null) {
 				throw new IllegalStateException("Filled buy is missing price");
 			}
-			buyQuantity += size;
-			buyNotional = buyNotional.add(BigDecimal.valueOf(size).multiply(price));
+			if (quantity >= 0) {
+				costBasis = costBasis.add(BigDecimal.valueOf(size).multiply(price));
+				quantity += size;
+				return;
+			}
+			quantity += size;
+			costBasis = quantity > 0 ? BigDecimal.valueOf(quantity).multiply(price) : BigDecimal.ZERO;
 		}
 
 		private void addSell(int size) {
-			sellQuantity += size;
+			if (quantity <= 0) {
+				quantity -= size;
+				return;
+			}
+			long remaining = quantity - size;
+			costBasis = remaining > 0
+					? costBasis.multiply(BigDecimal.valueOf(remaining))
+						.divide(BigDecimal.valueOf(quantity), MoneyMath.DIVISION_SCALE, RoundingMode.HALF_UP)
+					: BigDecimal.ZERO;
+			quantity = remaining;
 		}
 
 		private void reserveSell(int size) {
@@ -118,10 +131,10 @@ public final class BalanceCalculator {
 		}
 
 		private Holding toHolding() {
-			long quantity = buyQuantity - sellQuantity;
 			long available = quantity - reservedSell;
-			BigDecimal avgCost = buyQuantity == 0 ? null : buyNotional.divide(BigDecimal.valueOf(buyQuantity),
-					MoneyMath.DIVISION_SCALE, RoundingMode.HALF_UP);
+			BigDecimal avgCost = quantity > 0
+					? costBasis.divide(BigDecimal.valueOf(quantity), MoneyMath.DIVISION_SCALE, RoundingMode.HALF_UP)
+					: null;
 			return new Holding(toInt(quantity), toInt(reservedSell), toInt(available), avgCost);
 		}
 

@@ -128,6 +128,16 @@ class OrderApiTest extends IntegrationTestSupport {
 	}
 
 	@Test
+	void unreadableBodiesAreReportedAsMalformed() throws Exception {
+		postOrder(1, """
+				{"instrumentId":47,"side":"HOLD","type":"MARKET","size":1}
+				""").andExpect(status().isBadRequest()).andExpect(jsonPath("$.detail").value("Malformed request body"));
+		postOrder(1, """
+				{"instrumentId":47,
+				""").andExpect(status().isBadRequest()).andExpect(jsonPath("$.detail").value("Malformed request body"));
+	}
+
+	@Test
 	void malformedOrdersAreBadRequests() throws Exception {
 		postOrder(1, """
 				{"instrumentId":47,"side":"BUY","type":"MARKET","size":1,"amount":10}

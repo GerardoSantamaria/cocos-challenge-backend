@@ -8,6 +8,6 @@ import org.springframework.data.jpa.repository.JpaRepository;
 
 public interface OrderRepository extends JpaRepository<OrderEntity, Integer> {
 
-	List<OrderEntity> findByUserId(Integer userId);
+	List<OrderEntity> findByUserIdOrderByPlacedAtAscIdAsc(Integer userId);
 
 }

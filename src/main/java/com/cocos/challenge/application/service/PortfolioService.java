@@ -57,7 +57,10 @@ public class PortfolioService {
 		if (!userRepository.existsById(userId)) {
 			throw new NotFoundException("User not found");
 		}
-		List<OrderView> orders = orderRepository.findByUserId(userId).stream().map(OrderMapper::toView).toList();
+		List<OrderView> orders = orderRepository.findByUserIdOrderByPlacedAtAscIdAsc(userId)
+			.stream()
+			.map(OrderMapper::toView)
+			.toList();
 		AccountSnapshot snapshot = balanceCalculator.calculate(orders);
 		List<Integer> heldIds = snapshot.holdings()
 			.entrySet()

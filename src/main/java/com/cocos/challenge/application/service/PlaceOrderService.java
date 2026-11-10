@@ -8,6 +8,7 @@ import java.util.List;
 
 import com.cocos.challenge.application.command.PlaceOrderCommand;
 import com.cocos.challenge.application.mapper.OrderMapper;
+import com.cocos.challenge.application.support.QuoteLookup;
 import com.cocos.challenge.domain.enums.InstrumentType;
 import com.cocos.challenge.domain.enums.OrderStatus;
 import com.cocos.challenge.domain.enums.OrderType;
@@ -91,12 +92,9 @@ public class PlaceOrderService {
 		if (command.type() == OrderType.LIMIT) {
 			return MoneyMath.money(command.price());
 		}
-		return marketDataRepository
-			.findFirstByInstrumentIdAndClosePriceIsNotNullOrderByMarketDateDescIdDesc(command.instrumentId())
-			.map(MarketDataEntity::getClosePrice)
-			.filter(close -> close.signum() > 0)
-			.map(MoneyMath::money)
-			.orElse(null);
+		MarketDataEntity quote = QuoteLookup.latest(marketDataRepository, List.of(command.instrumentId()))
+			.get(command.instrumentId());
+		return quote == null ? null : MoneyMath.money(quote.getClosePrice());
 	}
 
 	private static Integer resolveSize(PlaceOrderCommand command, BigDecimal price) {
@@ -123,7 +121,7 @@ public class PlaceOrderService {
 	}
 
 	private List<OrderView> loadOrders(int userId) {
-		return orderRepository.findByUserId(userId).stream().map(OrderMapper::toView).toList();
+		return orderRepository.findByUserIdOrderByPlacedAtAscIdAsc(userId).stream().map(OrderMapper::toView).toList();
 	}
 
 	private PlacedOrder persist(int userId, PlaceOrderCommand command, Integer size, BigDecimal price,

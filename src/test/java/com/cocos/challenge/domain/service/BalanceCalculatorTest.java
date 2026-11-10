@@ -39,7 +39,45 @@ class BalanceCalculatorTest {
 		Holding bma = snapshot.holdings().get(31);
 		assertThat(bma.quantity()).isEqualTo(-10);
 		assertThat(bma.availableShares()).isEqualTo(-10);
+		assertThat(bma.avgCostPrice()).isNull();
 		assertThat(snapshot.holdings()).doesNotContainKey(66);
+	}
+
+	@Test
+	void averageCostSurvivesAPartialSell() {
+		AccountSnapshot snapshot = calculator
+			.calculate(List.of(order(66, Side.CASH_IN, OrderType.MARKET, OrderStatus.FILLED, 10_000, "1"),
+					order(1, Side.BUY, OrderType.MARKET, OrderStatus.FILLED, 10, "100"),
+					order(1, Side.SELL, OrderType.MARKET, OrderStatus.FILLED, 5, "150"),
+					order(1, Side.BUY, OrderType.MARKET, OrderStatus.FILLED, 5, "200")));
+
+		Holding holding = snapshot.holdings().get(1);
+		assertThat(holding.quantity()).isEqualTo(10);
+		assertThat(holding.avgCostPrice()).isEqualByComparingTo("150");
+	}
+
+	@Test
+	void averageCostRestartsAfterTheWholePositionIsSold() {
+		AccountSnapshot snapshot = calculator
+			.calculate(List.of(order(1, Side.BUY, OrderType.MARKET, OrderStatus.FILLED, 10, "100"),
+					order(1, Side.SELL, OrderType.MARKET, OrderStatus.FILLED, 10, "150"),
+					order(1, Side.BUY, OrderType.MARKET, OrderStatus.FILLED, 10, "200")));
+
+		Holding holding = snapshot.holdings().get(1);
+		assertThat(holding.quantity()).isEqualTo(10);
+		assertThat(holding.avgCostPrice()).isEqualByComparingTo("200");
+	}
+
+	@Test
+	void sellsDoNotChangeTheAverageCost() {
+		AccountSnapshot snapshot = calculator
+			.calculate(List.of(order(1, Side.BUY, OrderType.MARKET, OrderStatus.FILLED, 10, "100"),
+					order(1, Side.BUY, OrderType.MARKET, OrderStatus.FILLED, 10, "200"),
+					order(1, Side.SELL, OrderType.MARKET, OrderStatus.FILLED, 5, "300")));
+
+		Holding holding = snapshot.holdings().get(1);
+		assertThat(holding.quantity()).isEqualTo(15);
+		assertThat(holding.avgCostPrice()).isEqualByComparingTo("150");
 	}
 
 	@Test
