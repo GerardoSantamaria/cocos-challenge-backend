@@ -30,6 +30,8 @@ Hace falta JDK 21 y Docker. La base la levanta Testcontainers: no hay que pasar 
 
 `test` corre la suite contra Postgres efímero. `spring-boot:test-run` deja la API en `http://localhost:8080` contra esa misma base. Los ejemplos sueltos están en `http/cocos.http`.
 
+El código sigue [Spring Java Format](https://github.com/spring-io/spring-javaformat). El build falla si un archivo no respeta el formato; `./mvnw spring-javaformat:apply` lo corrige.
+
 ### Con Docker Compose
 
 Hace falta Docker. La variable `DB_TARGET` elige la base. Compose la lee del shell o de un `.env` en la raíz del repo (está en `.gitignore`; el modelo es `.env.example`).

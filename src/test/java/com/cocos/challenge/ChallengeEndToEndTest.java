@@ -6,9 +6,6 @@ import static org.assertj.core.api.Assertions.within;
 import java.io.IOException;
 import java.math.BigDecimal;
 import java.nio.charset.StandardCharsets;
-import java.time.Clock;
-import java.time.Instant;
-import java.time.ZoneOffset;
 import java.util.List;
 import java.util.Map;
 
@@ -20,11 +17,8 @@ import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
-import org.springframework.boot.test.context.TestConfiguration;
 import org.springframework.boot.test.web.server.LocalServerPort;
-import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Import;
-import org.springframework.context.annotation.Primary;
 import org.springframework.core.io.ByteArrayResource;
 import org.springframework.core.io.ClassPathResource;
 import org.springframework.http.HttpStatusCode;
@@ -33,13 +27,12 @@ import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.jdbc.datasource.init.ScriptUtils;
 import org.springframework.web.client.RestClient;
 
-@SpringBootTest(
-		webEnvironment = SpringBootTest.WebEnvironment.RANDOM_PORT,
-		properties = "spring.main.allow-bean-definition-overriding=true")
-@Import({TestcontainersConfiguration.class, ChallengeEndToEndTest.FixedClockConfiguration.class})
+@SpringBootTest(webEnvironment = SpringBootTest.WebEnvironment.RANDOM_PORT)
+@Import({ TestcontainersConfiguration.class, FixedClockConfiguration.class })
 class ChallengeEndToEndTest {
 
 	private static final double MONEY = 0.001;
+
 	private static final String SEED_INSERTS = seedInserts();
 
 	@LocalServerPort
@@ -57,10 +50,10 @@ class ChallengeEndToEndTest {
 	void resetDatabaseAndClient() throws Exception {
 		try (var connection = dataSource.getConnection()) {
 			try (var statement = connection.createStatement()) {
-				statement.execute(
-						"TRUNCATE TABLE orders, marketdata, instruments, users RESTART IDENTITY CASCADE");
+				statement.execute("TRUNCATE TABLE orders, marketdata, instruments, users RESTART IDENTITY CASCADE");
 			}
-			ScriptUtils.executeSqlScript(connection, new ByteArrayResource(SEED_INSERTS.getBytes(StandardCharsets.UTF_8)));
+			ScriptUtils.executeSqlScript(connection,
+					new ByteArrayResource(SEED_INSERTS.getBytes(StandardCharsets.UTF_8)));
 		}
 		client = RestClient.builder().baseUrl("http://127.0.0.1:" + port).build();
 	}
@@ -99,8 +92,8 @@ class ChallengeEndToEndTest {
 		assertThat(text(created, "$.datetime")).isEqualTo("2026-11-09T18:00:00");
 		int orderId = integer(created, "$.id");
 
-		Map<String, Object> row = jdbc.queryForMap(
-				"select status, size, price, userid, instrumentid from orders where id = ?", orderId);
+		Map<String, Object> row = jdbc
+			.queryForMap("select status, size, price, userid, instrumentid from orders where id = ?", orderId);
 		assertThat(row.get("status")).isEqualTo("FILLED");
 		assertThat(row.get("size")).isEqualTo(1);
 		assertThat(row.get("userid")).isEqualTo(1);
@@ -126,7 +119,8 @@ class ChallengeEndToEndTest {
 		HttpResult reserved = get("/api/v1/users/1/portfolio");
 		assertThat(number(reserved, "$.availableCash")).isCloseTo(627400.00, within(MONEY));
 		assertThat(number(reserved, "$.totalAccountValue")).isCloseTo(904784.00, within(MONEY));
-		assertThat(jdbc.queryForObject("select status from orders where id = ?", String.class, orderId)).isEqualTo("NEW");
+		assertThat(jdbc.queryForObject("select status from orders where id = ?", String.class, orderId))
+			.isEqualTo("NEW");
 
 		HttpResult cancelled = post("/api/v1/users/1/orders/" + orderId + "/cancel", "");
 		assertThat(cancelled.status().value()).isEqualTo(200);
@@ -135,7 +129,7 @@ class ChallengeEndToEndTest {
 		HttpResult released = get("/api/v1/users/1/portfolio");
 		assertThat(number(released, "$.availableCash")).isCloseTo(627500.00, within(MONEY));
 		assertThat(jdbc.queryForObject("select status from orders where id = ?", String.class, orderId))
-				.isEqualTo("CANCELLED");
+			.isEqualTo("CANCELLED");
 	}
 
 	@Test
@@ -146,7 +140,7 @@ class ChallengeEndToEndTest {
 		assertThat(text(created, "$.status")).isEqualTo("REJECTED");
 		int orderId = integer(created, "$.id");
 		assertThat(jdbc.queryForObject("select status from orders where id = ?", String.class, orderId))
-				.isEqualTo("REJECTED");
+			.isEqualTo("REJECTED");
 		assertThat(orderCount()).isEqualTo(12);
 
 		HttpResult portfolio = get("/api/v1/users/1/portfolio");
@@ -244,13 +238,4 @@ class ChallengeEndToEndTest {
 	private record HttpResult(HttpStatusCode status, String body) {
 	}
 
-	@TestConfiguration
-	static class FixedClockConfiguration {
-
-		@Bean
-		@Primary
-		Clock clock() {
-			return Clock.fixed(Instant.parse("2026-11-09T18:00:00Z"), ZoneOffset.UTC);
-		}
-	}
 }
